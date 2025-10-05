@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  planType     String    @default("free") @map("plan_type")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  
+  accounts     Account[]
+  budgets      Budget[]
+  goals        Goal[]
+  insights     Insight[]
+
+  @@map("users")
+}
+
+model Account {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  type            String    // checking, savings, credit
+  name            String
+  institutionName String?   @map("institution_name")
+  currency        String    @default("CAD")
+  balance         Decimal   @default(0) @db.Decimal(15, 2)
+  plaidItemId     String?   @map("plaid_item_id")
+  plaidAccountId  String?   @map("plaid_account_id")
+  lastSyncedAt    DateTime? @map("last_synced_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  accountId      String   @map("account_id")
+  postedAt       DateTime @map("posted_at")
+  amount         Decimal  @db.Decimal(15, 2)
+  type           String   // debit, credit
+  merchant       String?
+  normalizedName String?  @map("normalized_name")
+  rawCategory    String?  @map("raw_category")
+  category       String?
+  notes          String?
+  isManual       Boolean  @default(false) @map("is_manual")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, postedAt])
+  @@map("transactions")
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  month       String   // YYYY-MM
+  category    String
+  limitAmount Decimal  @map("limit_amount") @db.Decimal(15, 2)
+  spentAmount Decimal  @default(0) @map("spent_amount") @db.Decimal(15, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month, category])
+  @@map("budgets")
+}
+
+model Goal {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  name         String
+  targetAmount Decimal  @map("target_amount") @db.Decimal(15, 2)
+  currentSaved Decimal  @default(0) @map("current_saved") @db.Decimal(15, 2)
+  targetDate   DateTime @map("target_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("goals")
+}
+
+model Insight {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  kind        String   // cashflow, spending, networth
+  payload     Json
+  generatedAt DateTime @default(now()) @map("generated_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("insights")
+}
